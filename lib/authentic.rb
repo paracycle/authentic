@@ -35,13 +35,17 @@ module Authentic
     end
 
     desc "delete NAME", "Delete a TOTP key"
+    option :force, default: false, type: :boolean, aliases: '-f'
     def delete(name)
       item = Keychain.generic_passwords.where(service: "authentic gem", account: name).first
-      if item
+      unless item
+        return say "\u2717".colorize(:red) + " Couldn't find service #{name.colorize(:red)}..."
+      end
+      if options[:force] || yes?("Do you want to permanently delete #{name.colorize(:green)}?")
         item.delete
         say "\u2713".colorize(:green) + " Service #{name.colorize(:green)} deleted from keychain"
       else
-        say "\u2717".colorize(:red) + " Couldn't find service #{name.colorize(:red)}..."
+        say "Leaving service #{name.colorize(:green)} in keychain"
       end
     end
 
