@@ -75,7 +75,7 @@ module Authentic
               end
 
       table = keys.each_with_index.map do |key, idx|
-        number = (idx + 1).to_s.rjust(2, '0')
+        number = (idx + 1).to_s.rjust(keys.size.to_s.size, ' ')
         [
           number.colorize(:red),
           key.code.colorize(:green),
