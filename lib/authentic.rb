@@ -58,7 +58,7 @@ module Authentic
     }
 
     desc "generate", "Generate TOTP codes"
-    option :copy, default: true, type: :boolean
+    option 'skip-copy', default: false, type: :boolean, aliases: '-s'
     def generate
       now  = Time.now
       keys = Keychain
@@ -86,13 +86,19 @@ module Authentic
 
       print_table(table.to_a)
 
-      if options[:copy]
-        response = ask "\nWhich key should I copy? [1-#{keys.size}]"
-        return if response.empty?
-        idx = response.to_i - 1
-        key = keys[idx]
+      unless options['skip-copy']
+        if keys.size > 1
+          prompt = "\nWhich key should I copy?"
+          prompt += " [1-#{keys.size}, leave empty to exit]"
+          response = ask prompt
+          return if response.empty?
+          idx = response.to_i - 1
+          key = keys[idx]
+        else
+          key = keys.first
+        end
         Clipboard.pbcopy key.code
-        say "Key for account #{key.name.colorize(:green)} was copied to clipboard"
+        say "\nKey for account #{key.name.colorize(:green)} copied to clipboard"
       end
     end
   end
