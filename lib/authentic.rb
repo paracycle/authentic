@@ -9,6 +9,7 @@ require "ostruct"
 module Authentic
   class CLI < Thor
     package_name "Authentic"
+    default_task :generate
 
     desc "add NAME SECRET_KEY [LABEL]", "Add a new TOTP key"
     def add(name, secret_key, label = nil)
