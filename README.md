@@ -47,7 +47,7 @@ only be displayed the first time you setup TFA for the service.
 Once you have your TFA key in hand, adding it to `authentic` is as simple as:
 
 ```shell
-$ authentic add MyService hedere
+$ authentic add MyService qwdrft6789jkh
 ✓ Service MyService added to keychain
 ```
 
