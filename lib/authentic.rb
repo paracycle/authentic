@@ -27,7 +27,7 @@ module Authentic
       end
 
       unless item.nil?
-        say "\u2713".colorize(:green) + " Service #{name.colorize(:green)} add to keychain"
+        say "\u2713".colorize(:green) + " Service #{name.colorize(:green)} added to keychain"
       else
         say "\u2717".colorize(:red) + " Couldn't add service #{name.colorize(:red)}..."
         say "Error: #{message}" unless message.nil?
