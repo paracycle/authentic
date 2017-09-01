@@ -2,4 +2,5 @@
 
 require 'authentic'
 
+trap("INT") { exit }
 Authentic::CLI.start
