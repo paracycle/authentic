@@ -59,20 +59,31 @@ module Authentic
 
     desc "generate", "Generate TOTP codes"
     option 'skip-copy', default: false, type: :boolean, aliases: '-s'
+    option 'qr-codes', default: false, type: :boolean, aliases: '-qr'
     def generate
       now  = Time.now
       keys = Keychain
               .generic_passwords
               .where(service: "authentic gem")
               .all.map do |key|
-                totp = ROTP::TOTP.new(key.password.gsub(/=*$/, ''))
+                secret = key.password.gsub(/=*$/, '')
+                totp = ROTP::TOTP.new(secret)
                 OpenStruct.new(
+                  secret: secret,
                   code:   totp.at(now),
                   name:   key.attributes[:account],
                   label:  key.attributes[:comment],
                   remain: now.utc.to_i % totp.interval
                 )
               end
+
+      if options['qr-codes']
+        keys.each do |key|
+          puts "#{key.name} - #{key.label}\n"
+          puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.label}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
+        end
+        return
+      end
 
       table = keys.each_with_index.map do |key, idx|
         number = (idx + 1).to_s.rjust(keys.size.to_s.size, ' ')
