@@ -11,14 +11,14 @@ module Authentic
     package_name "Authentic"
     default_task :generate
 
-    desc "add NAME SECRET_KEY [LABEL]", "Add a new TOTP key"
-    def add(name, secret_key, label = nil)
+    desc "add NAME SECRET_KEY [SERVICE]", "Add a new TOTP key"
+    def add(name, secret_key, service = nil)
       params = {
-        service:  "authentic gem",
-        password: secret_key,
+        label: "authentic gem",
         account:  name,
+        service:  service || name,
+        password: secret_key,
       }
-      params[:comment] = label if label
 
       begin
         item = Keychain.generic_passwords.create(params)
@@ -64,33 +64,34 @@ module Authentic
       now  = Time.now
       keys = Keychain
               .generic_passwords
-              .where(service: "authentic gem")
+              .where(label: "authentic gem")
               .all.map do |key|
                 secret = key.password.gsub(/=*$/, '')
                 totp = ROTP::TOTP.new(secret)
                 OpenStruct.new(
-                  secret: secret,
-                  code:   totp.at(now),
-                  name:   key.attributes[:account],
-                  label:  key.attributes[:comment],
-                  remain: now.utc.to_i % totp.interval
+                  secret:  secret,
+                  code:    totp.at(now),
+                  name:    key.attributes[:account],
+                  service: key.attributes[:service],
+                  remain:  now.utc.to_i % totp.interval
                 )
-              end
+              end.sort_by { |k| [k.service, k.name] }
 
       if options['qr-codes']
         keys.each do |key|
-          puts "#{key.name} - #{key.label}\n"
-          puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.label}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
+          puts "#{key.service} - #{key.name}\n"
+          puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.service}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
         end
         return
       end
 
       table = keys.each_with_index.map do |key, idx|
         number = (idx + 1).to_s.rjust(keys.size.to_s.size, ' ')
+        service_prefix = "#{key.service} - " if key.service && key.service != key.name
         [
           number.colorize(:red),
           key.code.colorize(:green),
-          "#{key.name} #{(" (#{key.label})" if key.label)}",
+          "#{service_prefix}#{key.name}",
           CLOCKS[7 * (key.remain / 7)].colorize(:blue)
         ]
       end
