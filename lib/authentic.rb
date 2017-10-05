@@ -5,6 +5,7 @@ require "keychain"
 require "rotp"
 require "colorize"
 require "ostruct"
+require "json"
 
 module Authentic
   class CLI < Thor
@@ -57,9 +58,34 @@ module Authentic
       28 => "🌑",
     }
 
+    desc "export", "Export TOTP secret keys"
+    option 'qr', default: false, type: :boolean, aliases: '-q'
+    def export
+      keys = Keychain
+      .generic_passwords
+      .where(label: "authentic gem")
+      .all.map do |key|
+        secret = key.password.gsub(/=*$/, '')
+        totp = ROTP::TOTP.new(secret)
+        OpenStruct.new(
+          secret:  secret,
+          name:    key.attributes[:account],
+          service: key.attributes[:service]
+        )
+      end.sort_by { |k| [k.service, k.name] }
+
+      if options['qr']
+        keys.each do |key|
+          puts "#{key.service} - #{key.name}\n"
+          puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.service}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
+        end
+      else
+        puts keys.map(&:to_h).to_json
+      end
+    end
+
     desc "generate", "Generate TOTP codes"
     option 'skip-copy', default: false, type: :boolean, aliases: '-s'
-    option 'qr-codes', default: false, type: :boolean, aliases: '-qr'
     def generate
       now  = Time.now
       keys = Keychain
@@ -76,14 +102,6 @@ module Authentic
                   remain:  now.utc.to_i % totp.interval
                 )
               end.sort_by { |k| [k.service, k.name] }
-
-      if options['qr-codes']
-        keys.each do |key|
-          puts "#{key.service} - #{key.name}\n"
-          puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.service}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
-        end
-        return
-      end
 
       table = keys.each_with_index.map do |key, idx|
         number = (idx + 1).to_s.rjust(keys.size.to_s.size, ' ')
