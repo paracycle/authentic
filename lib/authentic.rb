@@ -116,7 +116,7 @@ module Authentic
 
       print_table(table.to_a)
 
-      unless options['skip-copy']
+      unless options['skip-copy'] || keys.size == 0
         if keys.size > 1
           prompt = "\nWhich key should I copy?"
           prompt += " [1-#{keys.size}, leave empty to exit]"
