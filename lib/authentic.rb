@@ -6,6 +6,8 @@ require "rotp"
 require "colorize"
 require "ostruct"
 require "json"
+require "openssl"
+require "base64"
 
 module Authentic
   class CLI < Thor
@@ -62,17 +64,17 @@ module Authentic
     option 'qr', default: false, type: :boolean, aliases: '-q'
     def export
       keys = Keychain
-      .generic_passwords
-      .where(label: "authentic gem")
-      .all.map do |key|
-        secret = key.password.gsub(/=*$/, '')
-        totp = ROTP::TOTP.new(secret)
-        OpenStruct.new(
-          secret:  secret,
-          name:    key.attributes[:account],
-          service: key.attributes[:service]
-        )
-      end.sort_by { |k| [k.service, k.name] }
+        .generic_passwords
+        .where(label: "authentic gem")
+        .all.map do |key|
+          secret = key.password.gsub(/=*$/, '')
+          totp = ROTP::TOTP.new(secret)
+          OpenStruct.new(
+            secret:  secret,
+            name:    key.attributes[:account],
+            service: key.attributes[:service]
+          )
+        end.sort_by { |k| [k.service, k.name] }
 
       if options['qr']
         keys.each do |key|
@@ -80,7 +82,43 @@ module Authentic
           puts `qrencode 'otpauth://totp/#{key.name}?issuer=#{key.service}&secret=#{key.secret}' -s 5 -o - | ~/.iterm2/imgcat`
         end
       else
-        puts keys.map(&:to_h).to_json
+        data = keys.map(&:to_h).to_json
+
+        password = ask "Please enter a password for exported data:", echo: false
+        return if password.empty?
+
+        salt = OpenSSL::Random.random_bytes(32)
+        cipher = OpenSSL::Cipher::AES256.new :CBC
+        cipher.encrypt
+        cipher.key = OpenSSL::PKCS5.pbkdf2_hmac_sha1(password, salt, 20000, 32)
+        cipher.iv = salt
+
+        cipher_text = cipher.update(data)
+        cipher_text << cipher.final
+
+        puts [salt, cipher_text].map { |part| Base64.strict_encode64(part) }.join(':')
+      end
+    end
+
+    desc "import DATA", "Import TOTP secret keys"
+    def import(data)
+      password = ask "Please enter a password for exported data:", echo: false
+      return if password.empty?
+
+      salt, cipher_text = data.split(':').map { |part| Base64.strict_decode64(part) }
+
+      cipher = OpenSSL::Cipher::AES256.new :CBC
+      cipher.decrypt
+      cipher.iv = salt
+      cipher.key = OpenSSL::PKCS5.pbkdf2_hmac_sha1(password, salt, 20000, 32)
+
+      text = cipher.update(cipher_text)
+      text << cipher.final
+
+      keys = JSON.parse(text)
+
+      keys.each do |key|
+        add(key['name'], key['secret'], key['service'])
       end
     end
 
